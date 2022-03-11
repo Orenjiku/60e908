@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box } from '@material-ui/core';
 import { BadgeAvatar, ChatContent } from '../Sidebar';
 import { makeStyles } from '@material-ui/core/styles';
+import UnreadBubble from './UnreadBubble';
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -17,9 +18,18 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-const Chat = ({ conversation, setActiveChat }) => {
+const Chat = ({ conversation, setActiveChat, activeConversation }) => {
   const classes = useStyles();
   const { otherUser } = conversation;
+
+  const [readCount, setReadCount] = useState(0);
+
+  useEffect(() => {
+    if (activeConversation === conversation.otherUser.username) {
+      setReadCount(conversation.messages.length);
+    }
+  }, [conversation, activeConversation]);
+
 
   const handleClick = async (conversation) => {
     await setActiveChat(conversation.otherUser.username);
@@ -34,6 +44,7 @@ const Chat = ({ conversation, setActiveChat }) => {
         sidebar={true}
       />
       <ChatContent conversation={conversation} />
+      {readCount < conversation.messages.length && <UnreadBubble unreadCount={conversation.messages.length - readCount} />}
     </Box>
   );
 };
