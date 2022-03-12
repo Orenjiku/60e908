@@ -83,7 +83,7 @@ const Home = ({ user, logout }) => {
       setConversations(prev => prev.map((convo) => {
         if (convo.otherUser.id === recipientId) {
           const convoCopy = { ...convo };
-          convoCopy.messages.push(message);
+          convoCopy.messages = [...convoCopy.messages, message];
           convoCopy.latestMessageText = message.text;
           convoCopy.id = message.conversationId;
           return convoCopy;
@@ -92,7 +92,7 @@ const Home = ({ user, logout }) => {
         }
       }));
     },
-    [setConversations, conversations]
+    []
   );
 
   const addMessageToConversation = useCallback(
@@ -112,7 +112,7 @@ const Home = ({ user, logout }) => {
       setConversations(prev => prev.map((convo) => {
         if (convo.id === message.conversationId) {
           const convoCopy = { ...convo };
-          convoCopy.messages.push(message);
+          convoCopy.messages = [...convoCopy.messages, message];
           convoCopy.latestMessageText = message.text;
           return convoCopy;
         } else {
@@ -120,7 +120,7 @@ const Home = ({ user, logout }) => {
         }
       }));
     },
-    [setConversations, conversations]
+    []
   );
 
   const setActiveChat = (username) => {
