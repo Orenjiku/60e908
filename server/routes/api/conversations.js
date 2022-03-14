@@ -2,6 +2,7 @@ const router = require("express").Router();
 const { User, Conversation, Message } = require("../../db/models");
 const { Op } = require("sequelize");
 const onlineUsers = require("../../onlineUsers");
+const hFn = require('./helperFunctions');
 
 // get all conversations for a user, include latest message text for preview, and all messages
 // include other user model so we have info on username/profile pic (don't include current user info)
@@ -77,49 +78,33 @@ router.get("/", async (req, res, next) => {
   }
 });
 
-const setUserInactive = async (activeUser, activeConvoId) => {
-  await Conversation.update({ [activeUser]: false }, { where: { id: activeConvoId }});
-};
-
-const setUserActive = async (activeUser, userUnread, activeConvoId) => {
-  await Conversation.update({ [activeUser]: true, [userUnread]: 0 }, { where: { id: activeConvoId }});
-};
-
-const incrementUnreadCount = async (userActive, userUnread, convoId) => {
-  await Conversation.increment([userUnread], { 
-    by: 1, 
-    where: { 
-      [Op.and]: [{ id: convoId }, { [userActive]: false }]
-    }
-  });
-};
-
-//performs updates to the conversation the user is active in and resets the count of unread messages.
-router.put("/activeChat/userActive", async (req, res, next) => {
+//when user leaves one convo for another, set user to be inactive in the previous convo and active in current one.
+router.put("/activeChat/user", async (req, res, next) => {
   try {
     const { prevActiveConvoId, prevActiveUser, activeConvoId, activeUser, isActive } = req.body;
 
     //sets user's active status of previous conversation to false before setting a new active conversation.
     if (prevActiveConvoId) {
-      const userActive = prevActiveUser === 'user1' ? 'user1Active' : 'user2Active';
-      await setUserInactive(userActive, prevActiveConvoId);
+      await hFn.setUserInactive(prevActiveUser, prevActiveConvoId);
     }
 
     if (isActive) {
       if (activeUser === 'user1') {
         if (activeConvoId !== undefined) {
-          await setUserActive('user1Active', 'user1UnreadCount', activeConvoId);
+          await hFn.setUserActive(activeUser, activeConvoId);
         }
+      //handles case when activeUser is 'user2' or null
       } else {
         if (activeConvoId !== undefined) {
-          await setUserActive('user2Active', 'user2UnreadCount', activeConvoId);
+          await hFn.setUserActive(activeUser, activeConvoId);
         }
       }
+    //handles case when user logs off.
     } else if (!isActive) {
       if (activeUser === 'user1') {
-        await setUserInactive('user1Active', activeConvoId);
+        await hFn.setUserInactive(activeUser, activeConvoId);
       } else {
-        await setUserInactive('user2Active', activeConvoId);
+        await hFn.setUserInactive(activeUser, activeConvoId);
       }
     }
   } catch (error) {
@@ -129,32 +114,21 @@ router.put("/activeChat/userActive", async (req, res, next) => {
 
 router.put("/activeChat/unread", async (req, res, next) => {
   try {
-    const { convoId, userId, recipientId, isOtherUserOnline } = req.body;
+    const { convoId, userId, recipientId } = req.body;
+    const isOtherUserOnline =  onlineUsers.includes(recipientId);
     
-    //determine whether if other user is user1 or user2.
-    const amIUser1Active = await Conversation.findOne({where: { 
-      [Op.and]: [
-        { id: convoId }, 
-        { user1Id: userId }, 
-        { user2Id: recipientId }
-      ]
-    }});
-    const otherUserActive = amIUser1Active ? 'user2Active' : 'user1Active';
-
-    //set otherUser's active status to false if not online. Handles edge case where otherUser exits the chat without logging out and status remained active.
+    //returns 'user1' or 'user2'
+    const otherUser = await hFn.getUser(convoId, userId, recipientId);
+    
+    //everytime user is sending a message, check if otherUser is offline and inactive before incrementing their unreadCount.
+    //also handles edge case where otherUser's active status in the chat is stuck true, such as if they reload the page.
     if (!isOtherUserOnline) {
-      setUserInactive(otherUserActive, convoId);
-    }
-
-    //increments otherUser's unreadCount only if they are inactive.
-    if (otherUserActive === 'user1') {
-      incrementUnreadCount('user1Active', 'user1UnreadCount', convoId)
-    } else {
-      incrementUnreadCount('user2Active', 'user2UnreadCount', convoId)
+      await hFn.setUserInactive(otherUser, convoId);
+      await hFn.incrementUnreadCount(otherUser, convoId);
     }
   } catch (error) {
     next(error);
   }
-})
+});
 
 module.exports = router;
