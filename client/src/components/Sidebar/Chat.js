@@ -18,25 +18,34 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-const Chat = ({ conversation, setActiveChat, activeConversation }) => {
+const Chat = ({ userId, conversation, setActiveChat, activeConversation }) => {
   const classes = useStyles();
   const { otherUser } = conversation;
 
-  const [readCount, setReadCount] = useState(0);
+  const activeUser = conversation.hasOwnProperty('user2') ? 'user2' : 'user1';
+  const [unreadCount, setUnreadCount] = useState(activeUser === 'user1' ? conversation.user1UnreadCount : conversation.user2UnreadCount);
 
   useEffect(() => {
-    if (activeConversation === conversation.otherUser.username) {
-      setReadCount(conversation.messages.length);
+    //set unreadCount to 0 when conversation exists and is active.
+    if (conversation.id !== undefined && activeConversation.otherUsername === conversation.otherUser.username) {
+      setUnreadCount(0);
+    //set unreadCount to stored value from database when conversation exists and is inactive.
+    } else if (conversation.id !== undefined && activeConversation.otherUsername !== conversation.otherUser.username) {
+      const newUnreadCount = activeUser === 'user1' ? conversation.user1UnreadCount : conversation.user2UnreadCount;
+      setUnreadCount(newUnreadCount);
     }
-  }, [conversation, activeConversation]);
+  }, [activeUser, conversation, activeConversation]);
 
-
-  const handleClick = async (conversation) => {
-    await setActiveChat(conversation.otherUser.username);
+  const handleClick = (conversation) => {
+    setActiveChat({
+      id: conversation.id, 
+      activeUser, 
+      otherUsername: conversation.otherUser.username,
+    });
   };
 
   return (
-    <Box onClick={() => handleClick(conversation)} className={classes.root}>
+    <Box onClick={() => handleClick(conversation, activeConversation)} className={classes.root}>
       <BadgeAvatar
         photoUrl={otherUser.photoUrl}
         username={otherUser.username}
@@ -44,7 +53,7 @@ const Chat = ({ conversation, setActiveChat, activeConversation }) => {
         sidebar={true}
       />
       <ChatContent conversation={conversation} />
-      {readCount < conversation.messages.length && <UnreadBubble unreadCount={conversation.messages.length - readCount} />}
+      {unreadCount > 0 && <UnreadBubble unreadCount={unreadCount} />}
     </Box>
   );
 };

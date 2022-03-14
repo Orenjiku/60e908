@@ -18,8 +18,8 @@ router.get("/", async (req, res, next) => {
           user2Id: userId,
         },
       },
-      attributes: ["id"],
-      order: [["id", "ASC"], [Message, "updatedAt", "ASC"]],
+      attributes: ["id", "user1UnreadCount", "user2UnreadCount"],
+      order: [["updatedAt", "DESC"], [Message, "updatedAt", "ASC"]],
       include: [
         { model: Message },
         {
@@ -76,5 +76,85 @@ router.get("/", async (req, res, next) => {
     next(error);
   }
 });
+
+const setUserInactive = async (activeUser, activeConvoId) => {
+  await Conversation.update({ [activeUser]: false }, { where: { id: activeConvoId }});
+};
+
+const setUserActive = async (activeUser, userUnread, activeConvoId) => {
+  await Conversation.update({ [activeUser]: true, [userUnread]: 0 }, { where: { id: activeConvoId }});
+};
+
+const incrementUnreadCount = async (userActive, userUnread, convoId) => {
+  await Conversation.increment([userUnread], { 
+    by: 1, 
+    where: { 
+      [Op.and]: [{ id: convoId }, { [userActive]: false }]
+    }
+  });
+};
+
+//performs updates to the conversation the user is active in and resets the count of unread messages.
+router.put("/activeChat/userActive", async (req, res, next) => {
+  try {
+    const { prevActiveConvoId, prevActiveUser, activeConvoId, activeUser, isActive } = req.body;
+
+    //sets user's active status of previous conversation to false before setting a new active conversation.
+    if (prevActiveConvoId) {
+      const userActive = prevActiveUser === 'user1' ? 'user1Active' : 'user2Active';
+      await setUserInactive(userActive, prevActiveConvoId);
+    }
+
+    if (isActive) {
+      if (activeUser === 'user1') {
+        if (activeConvoId !== undefined) {
+          await setUserActive('user1Active', 'user1UnreadCount', activeConvoId);
+        }
+      } else {
+        if (activeConvoId !== undefined) {
+          await setUserActive('user2Active', 'user2UnreadCount', activeConvoId);
+        }
+      }
+    } else if (!isActive) {
+      if (activeUser === 'user1') {
+        await setUserInactive('user1Active', activeConvoId);
+      } else {
+        await setUserInactive('user2Active', activeConvoId);
+      }
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/activeChat/unread", async (req, res, next) => {
+  try {
+    const { convoId, userId, recipientId, isOtherUserOnline } = req.body;
+    
+    //determine whether if other user is user1 or user2.
+    const amIUser1Active = await Conversation.findOne({where: { 
+      [Op.and]: [
+        { id: convoId }, 
+        { user1Id: userId }, 
+        { user2Id: recipientId }
+      ]
+    }});
+    const otherUserActive = amIUser1Active ? 'user2Active' : 'user1Active';
+
+    //set otherUser's active status to false if not online. Handles edge case where otherUser exits the chat without logging out and status remained active.
+    if (!isOtherUserOnline) {
+      setUserInactive(otherUserActive, convoId);
+    }
+
+    //increments otherUser's unreadCount only if they are inactive.
+    if (otherUserActive === 'user1') {
+      incrementUnreadCount('user1Active', 'user1UnreadCount', convoId)
+    } else {
+      incrementUnreadCount('user2Active', 'user2UnreadCount', convoId)
+    }
+  } catch (error) {
+    next(error);
+  }
+})
 
 module.exports = router;
