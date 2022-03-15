@@ -1,5 +1,5 @@
 const { Conversation } = require("../../db/models");
-const { Op, col } = require("sequelize");
+const { Op } = require("sequelize");
 
 const helperFunctions = {
     getUserActive: function (user) {
@@ -12,9 +12,7 @@ const helperFunctions = {
     
     setUserInactive: async function (activeUser, activeConvoId) {
         activeUser = this.getUserActive(activeUser);
-        console.log(activeUser, activeConvoId);
-        const b = await Conversation.update({ [activeUser]: false }, { where: { id: activeConvoId }});
-        console.log(b);
+        await Conversation.update({ [activeUser]: false }, { where: { id: activeConvoId }});
     },
     
     setUserActive: async function (activeUser, activeConvoId) {
@@ -43,6 +41,19 @@ const helperFunctions = {
             ]
         }});
         return amIUser1 ? 'user2' : 'user1';
+    },
+
+    getLastActiveConvo: async function (id, userId, userActive) {
+        const activeConversation = await Conversation.findOne({
+            where: {
+                [Op.and]: {
+                    [userId]: id,
+                    [userActive]: true,
+                },
+            },
+            attributes: ['id', 'user1Active', 'user2Active', 'user1Id', 'user2Id']
+          });
+        return activeConversation;
     }
 }
 

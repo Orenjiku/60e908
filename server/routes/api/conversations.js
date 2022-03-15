@@ -20,7 +20,7 @@ router.get("/", async (req, res, next) => {
         },
       },
       attributes: ["id", "user1UnreadCount", "user2UnreadCount"],
-      order: [["updatedAt", "DESC"], [Message, "updatedAt", "ASC"]],
+      order: [[Message, "updatedAt", "ASC"]],
       include: [
         { model: Message },
         {
@@ -72,8 +72,25 @@ router.get("/", async (req, res, next) => {
       conversations[i] = convoJSON;
     }
 
-    res.json(conversations);
+    res.json(conversations.reverse());
   } catch (error) {
+    next(error);
+  }
+});
+
+//returns last active conversation to handle cases where the user refreshes the page or crashes and doesn't actually log out.
+router.get("/activeChat/:userId", async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    
+    //searches conversations for the case where userId === user1Id and active is true.
+    const convo1 = await hFn.getLastActiveConvo(userId, 'user1Id', 'user1Active');
+    //searches convrsations for the case where userId === user2Id and active is true.
+    const convo2 = await hFn.getLastActiveConvo(userId, 'user2Id', 'user2Active');
+
+    //if user is active in a conversation returns the conversation info.
+    res.json(convo1 || convo2);
+  } catch(error) {
     next(error);
   }
 });
@@ -82,11 +99,9 @@ router.get("/", async (req, res, next) => {
 router.put("/activeChat/user", async (req, res, next) => {
   try {
     const { prevActiveConvoId, prevActiveUser, activeConvoId, activeUser, isActive } = req.body;
-
+    
     //sets user's active status of previous conversation to false before setting a new active conversation.
-    if (prevActiveConvoId) {
-      await hFn.setUserInactive(prevActiveUser, prevActiveConvoId);
-    }
+    if (prevActiveConvoId) await hFn.setUserInactive(prevActiveUser, prevActiveConvoId);
 
     if (activeConvoId !== undefined) {
       if (isActive) {
@@ -105,6 +120,8 @@ router.put("/activeChat/user", async (req, res, next) => {
         }
       }
     }
+
+    res.json();
   } catch (error) {
     next(error);
   }
@@ -113,17 +130,13 @@ router.put("/activeChat/user", async (req, res, next) => {
 router.put("/activeChat/unread", async (req, res, next) => {
   try {
     const { convoId, userId, recipientId } = req.body;
-    const isOtherUserOnline =  onlineUsers.includes(recipientId);
     
-    //returns 'user1' or 'user2'
+    //find out whether otherUser is 'user1' or 'user2'
     const otherUser = await hFn.getUser(convoId, userId, recipientId);
-    
-    //everytime user is sending a message, check if otherUser is offline and inactive before incrementing their unreadCount.
-    //also handles edge case where otherUser's active status in the chat remains true but they are actually not, such as if they reload the page.
-    if (!isOtherUserOnline) {
-      await hFn.setUserInactive(otherUser, convoId);
-      await hFn.incrementUnreadCount(otherUser, convoId);
-    }
+    //increment only if otherUser is inactive
+    await hFn.incrementUnreadCount(otherUser, convoId); 
+
+    res.json();
   } catch (error) {
     next(error);
   }
