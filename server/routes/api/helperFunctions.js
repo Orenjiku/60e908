@@ -1,5 +1,5 @@
 const { Conversation } = require("../../db/models");
-const { Op } = require("sequelize");
+const { Op, col } = require("sequelize");
 
 const helperFunctions = {
     getUserActive: function (user) {
@@ -12,7 +12,9 @@ const helperFunctions = {
     
     setUserInactive: async function (activeUser, activeConvoId) {
         activeUser = this.getUserActive(activeUser);
-        await Conversation.update({ [activeUser]: false }, { where: { id: activeConvoId }});
+        console.log(activeUser, activeConvoId);
+        const b = await Conversation.update({ [activeUser]: false }, { where: { id: activeConvoId }});
+        console.log(b);
     },
     
     setUserActive: async function (activeUser, activeConvoId) {
