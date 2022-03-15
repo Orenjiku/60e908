@@ -22,7 +22,7 @@ const Home = ({ user, logout }) => {
 
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState({id: null, activeUser: null, otherUsername: null});
-  //tracks previous conversation if it has been assigned an id, i.e. users exchanged at least 1 message.
+  //tracks previous conversation if it has been assigned an id, used to close active status of previous conversation.
   let prevActiveConversation = usePreviousActiveConversation(activeConversation);
 
   const classes = useStyles();
@@ -65,7 +65,8 @@ const Home = ({ user, logout }) => {
     });
   };
 
-  const updateOtherUserChatUnreadCount = async (body) => {
+  //checks if otherUser is inactive. if inactive, updates otherUser's unreadCount.
+  const updateOtherUserUnreadCount = async (body) => {
     axios.put('/api/conversations/activeChat/unread', body);
   };
 
@@ -81,46 +82,38 @@ const Home = ({ user, logout }) => {
       
       sendMessage(data, body);
 
-      updateOtherUserChatUnreadCount({
+      updateOtherUserUnreadCount({
         convoId: data.message.conversationId, 
         userId: data.message.senderId,
         recipientId: body.recipientId,
-        isOtherUserOnline: body.isOtherUserOnline
-      })
+      });
     } catch (error) {
       console.error(error);
     }
   };
 
-  const setMostRecentConversation = useCallback(
-    (message, recipientId = null) => {
-      const conversationsCopy = [ ...conversations ];
-
-      const convoIdx = recipientId !== null 
-        ? conversationsCopy.findIndex(convo => convo.otherUser.id === recipientId) 
-        : conversationsCopy.findIndex(convo => convo.id === message.conversationId);
-        
-      const convoCopy = { ...conversationsCopy[convoIdx] };
-      conversationsCopy.splice(convoIdx, 1);
-
-      convoCopy.messages = [...convoCopy.messages, message];
-      convoCopy.latestMessageText = message.text;
-      convoCopy.id = message.conversationId;
-
-      conversationsCopy.unshift(convoCopy);
-      setConversations(conversationsCopy);
-    }
-  , [conversations]);
-
-  const addNewConvo = (recipientId, message) => {
-    setActiveChat({
-      id: message.conversationId,
-      activeUser: 'user1',
-      isActive: true
-    });
-
-    setMostRecentConversation(message, recipientId);
-  };
+  const addNewConvo = useCallback(
+    (recipientId, message) => {
+      setConversations(prev => prev.map((convo) => {
+        if (convo.otherUser.id === recipientId) {
+          const convoCopy = { ...convo };
+          convoCopy.messages = [...convoCopy.messages, message];
+          convoCopy.latestMessageText = message.text;
+          convoCopy.id = message.conversationId;
+          //set new conversation as activeConversation. a user creating a new conversation is 'user1' in database.
+          setActiveChat({
+            id: message.conversationId,
+            activeUser: 'user1',
+            isActive: true
+          });
+          return convoCopy;
+        } else {
+          return convo;
+        }
+      }));
+    },
+    []
+  );
 
   const addMessageToConversation = useCallback(
     (data) => {
@@ -136,20 +129,46 @@ const Home = ({ user, logout }) => {
         setConversations((prev) => [newConvo, ...prev]);
       }
 
-      setMostRecentConversation(message);
-    }, [setMostRecentConversation]);
+      setConversations(prev => prev.map((convo) => {
+        if (convo.id === message.conversationId) {
+          const convoCopy = { ...convo };
+          convoCopy.messages = [...convoCopy.messages, message];
+          convoCopy.latestMessageText = message.text;
+          return convoCopy;
+        } else {
+          return convo;
+        }
+      }));
+    },
+    []
+  );
 
   const setActiveChat = (body) => {
     setActiveConversation(prev => ({...prev, ...body}));
   };
 
-  const setUserActiveInChat = useCallback(async (body) => {
-    try {
-      await axios.put('api/conversations/activeChat/userActive', body);
-    } catch (error) {
-      console.error(error);
+  //updates user's active status in previous conversation to inactive and current conversation to active.
+  const setUserActiveInChat = useCallback(async (isActive) => {
+    const body = {
+      prevActiveConvoId: prevActiveConversation.id,
+      prevActiveUser: prevActiveConversation.activeUser,
+      activeConvoId: activeConversation.id,
+      activeUser: activeConversation.activeUser,
+      isActive: isActive,
+    };
+    if (!(!prevActiveConversation.id && !activeConversation.id)) { 
+      try {
+        await axios.put('api/conversations/activeChat/user', body);
+      } catch (error) {
+        console.error(error);
+      }
     }
-  }, []);
+  }, [prevActiveConversation, activeConversation]);
+
+  //update whenever preActiveConversation or activeConversation changes
+  useEffect(() => {
+    setUserActiveInChat(true);
+  }, [setUserActiveInChat]);
 
   const addOnlineUser = useCallback((id) => {
     setConversations((prev) =>
@@ -186,7 +205,6 @@ const Home = ({ user, logout }) => {
     socket.on('add-online-user', addOnlineUser);
     socket.on('remove-offline-user', removeOfflineUser);
     socket.on('new-message', addMessageToConversation);
-
     return () => {
       // before the component is destroyed
       // unbind all event handlers used in this component
@@ -223,32 +241,9 @@ const Home = ({ user, logout }) => {
     }
   }, [user]);
 
-  //whenever user clicks on a conversation, the user is set to inactive in the previous conversaton and set to active on the clicked conversation. 
-  useEffect(() => {
-    //does not run when both are null
-    if (!(!prevActiveConversation.id && !activeConversation.id)) {
-      setUserActiveInChat({
-        prevActiveConvoId: prevActiveConversation.id,
-        prevActiveUser: prevActiveConversation.activeUser,
-        activeConvoId: activeConversation.id,
-        activeUser: activeConversation.activeUser,
-        isActive: true,
-      });
-    }
-  }, [prevActiveConversation, activeConversation, setUserActiveInChat]);
-
   const handleLogout = async () => {
+    setUserActiveInChat(false)
     if (user && user.id) {
-      //sets user to inactive both previous conversation and current conversation.
-      if (activeConversation.id) {
-        setUserActiveInChat({
-          prevActiveConvoId: prevActiveConversation.id,
-          prevActiveUser: prevActiveConversation.activeUser,
-          activeConvoId: activeConversation.id,
-          activeUser: activeConversation.activeUser,
-          isActive: false,
-        });
-      }
       await logout(user.id);
     }
   };
