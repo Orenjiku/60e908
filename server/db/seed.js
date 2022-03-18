@@ -1,7 +1,9 @@
 const db = require("./db");
 const { User } = require("./models");
 const Conversation = require("./models/conversation");
+const UserConversation = require('./models/userConversation');
 const Message = require("./models/message");
+const UserMessage = require('./models/userMessage');
 
 async function seed() {
   await db.sync({ force: true });
@@ -23,27 +25,74 @@ async function seed() {
       "https://res.cloudinary.com/dmlvthmqr/image/upload/v1607914466/messenger/775db5e79c5294846949f1f55059b53317f51e30_s3back.png",
   });
 
-  const santaigoConvo = await Conversation.create({
-    user1Id: thomas.id,
-    user2Id: santiago.id,
-  });
+  const convo1 = await Conversation.create();
+  await UserConversation.create({
+    userId: santiago.id,
+    conversationId: convo1.id,
+  })
+  await UserConversation.create({
+    userId: thomas.id,
+    conversationId: convo1.id,
+  })
 
-  await Message.create({
-    conversationId: santaigoConvo.id,
+  const convo1Message1 = await Message.create({
+    conversationId: convo1.id,
     senderId: santiago.id,
     text: "Where are you from?",
   });
-  await Message.create({
-    conversationId: santaigoConvo.id,
+  const convo1Message2 = await Message.create({
+    conversationId: convo1.id,
     senderId: thomas.id,
     text: "I'm from New York",
   });
-  await Message.create({
-    conversationId: santaigoConvo.id,
+  const convo1Message3 = await Message.create({
+    conversationId: convo1.id,
     senderId: santiago.id,
     text: "Share photo of your city, please",
   });
 
+  //make connection between users, convo1, and convo1Message1
+  await UserMessage.create({
+    userId: santiago.id,
+    conversationId: convo1.id,
+    messageId: convo1Message1.id,
+    unread: false
+  });
+  await UserMessage.create({
+    userId: thomas.id,
+    conversationId: convo1.id,
+    messageId: convo1Message1.id,
+    unread: true
+  });
+
+  //make connection between users, convo1, and convo1Message2
+  await UserMessage.create({
+    userId: santiago.id,
+    conversationId: convo1.id,
+    messageId: convo1Message2.id,
+    unread: true
+  });
+  await UserMessage.create({
+    userId: thomas.id,
+    conversationId: convo1.id,
+    messageId: convo1Message2.id,
+    unread: false
+  });
+
+  //make connection between users, convo1, and convo1Message3
+  await UserMessage.create({
+    userId: santiago.id,
+    conversationId: convo1.id,
+    messageId: convo1Message3.id,
+    unread: false
+  });
+  await UserMessage.create({
+    userId: thomas.id,
+    conversationId: convo1.id,
+    messageId: convo1Message3.id,
+    unread: true
+  });
+  
   const chiumbo = await User.create({
     username: "chiumbo",
     email: "chiumbo@email.com",
@@ -51,14 +100,35 @@ async function seed() {
     photoUrl:
       "https://res.cloudinary.com/dmlvthmqr/image/upload/v1607914468/messenger/8bc2e13b8ab74765fd57f0880f318eed1c3fb001_fownwt.png",
   });
-  const chiumboConvo = await Conversation.create({
-    user1Id: chiumbo.id,
-    user2Id: thomas.id,
+
+  const convo2 = await Conversation.create();
+  await UserConversation.create({
+    userId: chiumbo.id,
+    conversationId: convo2.id,
   });
-  await Message.create({
-    conversationId: chiumboConvo.id,
+  await UserConversation.create({
+    userId: thomas.id,
+    conversationId: convo2.id,
+  });
+
+  const convo2Message1 = await Message.create({
+    conversationId: convo2.id,
     senderId: chiumbo.id,
     text: "Sure! What time?",
+  });
+
+  //make connection between users, convo2, and convo2Message1
+  await UserMessage.create({
+    userId: chiumbo.id,
+    conversationId: convo2.id,
+    messageId: convo2Message1.id,
+    unread: false,
+  });
+  await UserMessage.create({
+    userId: thomas.id,
+    conversationId: convo2.id,
+    messageId: convo2Message1.id,
+    unread: true,
   });
 
   const hualing = await User.create({
@@ -68,23 +138,56 @@ async function seed() {
     photoUrl:
       "https://res.cloudinary.com/dmlvthmqr/image/upload/v1607914466/messenger/6c4faa7d65bc24221c3d369a8889928158daede4_vk5tyg.png",
   });
-  const hualingConvo = await Conversation.create({
-    user2Id: hualing.id,
-    user1Id: thomas.id,
+
+  const convo3 = await Conversation.create();
+  await UserConversation.create({
+    userId: hualing.id,
+    conversationId: convo3.id,
+  }) 
+  await UserConversation.create({
+    userId: thomas.id,
+    conversationId: convo3.id,
   });
 
   for (let i = 0; i < 11; i++) {
-    await Message.create({
-      conversationId: hualingConvo.id,
+    const convo3Message = await Message.create({
+      conversationId: convo3.id,
       senderId: hualing.id,
       text: "a test message",
     });
+  //make connection between users, convo3, and convo3Messages
+    await UserMessage.create({
+      userId: hualing.id,
+      conversationId: convo3.id,
+      messageId: convo3Message.id,
+      unread: false,
+    });
+    await UserMessage.create({
+      userId: thomas.id,
+      conversationId: convo3.id,
+      messageId: convo3Message.id,
+      unread: true,
+    });
   }
 
-  await Message.create({
-    conversationId: hualingConvo.id,
+  const convo3Message = await Message.create({
+    conversationId: convo3.id,
     senderId: hualing.id,
     text: "😂 😂 😂",
+  });
+
+  //make connection between users, convo3, and convo3Message
+  await UserMessage.create({
+    userId: hualing.id,
+    conversationId: convo3.id,
+    messageId: convo3Message.id,
+    unread: false,
+  });
+  await UserMessage.create({
+    userId: thomas.id,
+    conversationId: convo3.id,
+    messageId: convo3Message.id,
+    unread: true,
   });
 
   const otherUsers = await Promise.all([
