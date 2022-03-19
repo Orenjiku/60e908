@@ -81,6 +81,10 @@ router.get("/", async (req, res, next) => {
 //returns last active conversation to handle cases where the user refreshes the page or crashes and doesn't actually log out.
 router.get("/activeChat/:userId", async (req, res, next) => {
   try {
+    if (!req.user) {
+      return res.sendStatus(401);
+    }
+
     const { userId } = req.params;
     
     //searches conversations for the case where userId === user1Id and active is true.
@@ -98,6 +102,10 @@ router.get("/activeChat/:userId", async (req, res, next) => {
 //when user leaves one convo for another, set user to be inactive in the previous convo and active in current one.
 router.put("/activeChat/user", async (req, res, next) => {
   try {
+    if (!req.user) {
+      return res.sendStatus(401);
+    }
+
     const { prevActiveConvoId, prevActiveUser, activeConvoId, activeUser, isActive } = req.body;
     
     //sets user's active status of previous conversation to false before setting a new active conversation.
@@ -121,7 +129,7 @@ router.put("/activeChat/user", async (req, res, next) => {
       }
     }
 
-    res.json();
+    res.sendStatus(204);
   } catch (error) {
     next(error);
   }
@@ -129,6 +137,10 @@ router.put("/activeChat/user", async (req, res, next) => {
 
 router.put("/activeChat/unread", async (req, res, next) => {
   try {
+    if (!req.user) {
+      return res.sendStatus(401);
+    }
+    
     const { convoId, userId, recipientId } = req.body;
     
     //find out whether otherUser is 'user1' or 'user2'
@@ -136,7 +148,7 @@ router.put("/activeChat/unread", async (req, res, next) => {
     //increment only if otherUser is inactive
     await hFn.incrementUnreadCount(otherUser, convoId); 
 
-    res.json();
+    res.sendStatus(204);
   } catch (error) {
     next(error);
   }
