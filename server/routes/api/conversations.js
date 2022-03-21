@@ -86,7 +86,7 @@ router.get("/activeChat/:userId", async (req, res, next) => {
     }
 
     const { userId } = req.params;
-    
+
     //searches conversations for the case where userId === user1Id and active is true.
     const convo1 = await hFn.getLastActiveConvo(userId, 'user1Id', 'user1Active');
     //searches convrsations for the case where userId === user2Id and active is true.
@@ -94,7 +94,7 @@ router.get("/activeChat/:userId", async (req, res, next) => {
 
     //if user is active in a conversation returns the conversation info.
     res.json(convo1 || convo2);
-  } catch(error) {
+  } catch (error) {
     next(error);
   }
 });
@@ -107,7 +107,7 @@ router.put("/activeChat/user", async (req, res, next) => {
     }
 
     const { prevActiveConvoId, prevActiveUser, activeConvoId, activeUser, isActive } = req.body;
-    
+
     //sets user's active status of previous conversation to false before setting a new active conversation.
     if (prevActiveConvoId) await hFn.setUserInactive(prevActiveUser, prevActiveConvoId);
 
@@ -115,11 +115,11 @@ router.put("/activeChat/user", async (req, res, next) => {
       if (isActive) {
         if (activeUser === 'user1') {
           await hFn.setUserActive(activeUser, activeConvoId);
-        //handles case when activeUser is 'user2' or null
+          //handles case when activeUser is 'user2' or null
         } else {
           await hFn.setUserActive(activeUser, activeConvoId);
         }
-      //handles case when user logs off.
+        //handles case when user logs off.
       } else if (!isActive) {
         if (activeUser === 'user1') {
           await hFn.setUserInactive(activeUser, activeConvoId);
@@ -140,15 +140,15 @@ router.put("/activeChat/unread", async (req, res, next) => {
     if (!req.user) {
       return res.sendStatus(401);
     }
-    
+
     const { convoId, userId, recipientId } = req.body;
-    
+
     //find out whether otherUser is 'user1' or 'user2'
     const otherUser = await hFn.getUser(convoId, userId, recipientId);
     //increment only if otherUser is inactive
-    await hFn.incrementUnreadCount(otherUser, convoId); 
+    const result = await hFn.incrementUnreadCount(otherUser, convoId);
 
-    res.sendStatus(204);
+    res.json({ conversationId: result[0][0][0].id, user1UnreadCount: result[0][0][0].user1UnreadCount, user2UnreadCount: result[0][0][0].user2UnreadCount });
   } catch (error) {
     next(error);
   }
