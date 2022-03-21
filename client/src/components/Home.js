@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useContext } from 'react';
+import React, { useCallback, useEffect, useState, useContext, useRef } from 'react';
 import axios from 'axios';
 import { useHistory } from 'react-router-dom';
 import { Grid, CssBaseline, Button } from '@material-ui/core';
@@ -20,7 +20,9 @@ const Home = ({ user, logout }) => {
   const socket = useContext(SocketContext);
 
   const [conversations, setConversations] = useState([]);
-  const [activeConversation, setActiveConversation] = useState(null);
+  const [activeConversation, setActiveConversation] = useState({ id: null, activeUser: null, otherUsername: null });
+  //tracks previous conversation
+  const prevActiveConversation = useRef(activeConversation);
 
   const classes = useStyles();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -49,6 +51,27 @@ const Home = ({ user, logout }) => {
     setConversations((prev) => prev.filter((convo) => convo.id));
   };
 
+  //updates user's active status in previous conversation to inactive and current conversation to active.
+  const setUserActiveInChat = useCallback(async ({ activeConvoId, activeUser, isActive }) => {
+    const body = {
+      prevActiveConvoId: prevActiveConversation.current.id,
+      prevActiveUser: prevActiveConversation.current.activeUser,
+      activeConvoId,
+      activeUser,
+      isActive,
+    };
+    await axios.put('api/conversations/activeChat/user', body);
+  }, [prevActiveConversation]);
+
+  const setActiveChat = useCallback(async ({ id, activeUser, otherUsername }) => {
+    //updates prevActiveConversation only if activeConversation exists.
+    if (activeConversation.id) prevActiveConversation.current = activeConversation;
+
+    await setUserActiveInChat({ activeConvoId: id, activeUser, isActive: true });
+
+    setActiveConversation(prev => ({ ...prev, id, activeUser, otherUsername }));
+  }, [activeConversation, setUserActiveInChat]);
+
   const saveMessage = async (body) => {
     const { data } = await axios.post('/api/messages', body);
     return data;
@@ -62,6 +85,23 @@ const Home = ({ user, logout }) => {
     });
   };
 
+  //checks if otherUser is inactive. if inactive, updates otherUser's unreadCount.
+  const updateOtherUserUnreadCount = async (body) => {
+    //return user1UnreadCount and user2UnreadCount and conversationId
+    const { data } = await axios.put('/api/conversations/activeChat/unread', body);
+    //find conversation with conversationId, update the user1UnreadCount and user2UnreadCount
+    setConversations(prev => prev.map((convo) => {
+      if (convo.id === data.conversationId) {
+        const convoCopy = { ...convo };
+        convoCopy.user1UnreadCount = data.user1UnreadCount;
+        convoCopy.user2UnreadCount = data.user2UnreadCount;
+        return convoCopy;
+      } else {
+        return convo;
+      }
+    }));
+  };
+
   const postMessage = async (body) => {
     try {
       const data = await saveMessage(body);
@@ -73,6 +113,12 @@ const Home = ({ user, logout }) => {
       }
 
       sendMessage(data, body);
+
+      updateOtherUserUnreadCount({
+        convoId: data.message.conversationId,
+        userId: data.message.senderId,
+        recipientId: body.recipientId,
+      });
     } catch (error) {
       console.error(error);
     }
@@ -86,13 +132,19 @@ const Home = ({ user, logout }) => {
           convoCopy.messages = [...convoCopy.messages, message];
           convoCopy.latestMessageText = message.text;
           convoCopy.id = message.conversationId;
+          //set new conversation as activeConversation. a user creating a new conversation is 'user1' in database.
+          setActiveChat({
+            id: message.conversationId,
+            activeUser: 'user1',
+            otherUsername: convo.otherUser.username
+          });
           return convoCopy;
         } else {
           return convo;
         }
       }));
     },
-    []
+    [setActiveChat]
   );
 
   const addMessageToConversation = useCallback(
@@ -123,9 +175,22 @@ const Home = ({ user, logout }) => {
     []
   );
 
-  const setActiveChat = (username) => {
-    setActiveConversation(username);
-  };
+  //repopulates last activeConversation in edge cases where user refreshes the page while in a conversation.
+  const getLastActiveConversation = useCallback(async (userId, conversations) => {
+    const { data } = await axios.get(`/api/conversations/activeChat/${userId}`);
+    if (data) {
+      const activeUser = data.user1Id === userId ? 'user1' : 'user2';
+      const otherUsername = conversations.find(convo => convo.id === data.id).otherUser.username;
+      setActiveConversation({ id: data.id, activeUser, otherUsername })
+    }
+  }, [])
+
+  useEffect(() => {
+    //only checks for last activeConversation if there is no activeConversation.
+    if (user.id && conversations.length > 0 && !activeConversation.id) {
+      getLastActiveConversation(user.id, conversations);
+    }
+  }, [user, conversations, activeConversation, getLastActiveConversation]);
 
   const addOnlineUser = useCallback((id) => {
     setConversations((prev) =>
@@ -162,7 +227,6 @@ const Home = ({ user, logout }) => {
     socket.on('add-online-user', addOnlineUser);
     socket.on('remove-offline-user', removeOfflineUser);
     socket.on('new-message', addMessageToConversation);
-
     return () => {
       // before the component is destroyed
       // unbind all event handlers used in this component
@@ -201,6 +265,12 @@ const Home = ({ user, logout }) => {
 
   const handleLogout = async () => {
     if (user && user.id) {
+      //when logging out set the user's active status in current conversation to inactive.
+      await setUserActiveInChat({
+        activeConvoId: activeConversation.id,
+        activeUser: activeConversation.activeUser,
+        isActive: false
+      });
       await logout(user.id);
     }
   };
@@ -216,6 +286,7 @@ const Home = ({ user, logout }) => {
           clearSearchedUsers={clearSearchedUsers}
           addSearchedUsers={addSearchedUsers}
           setActiveChat={setActiveChat}
+          activeConversation={activeConversation}
         />
         <ActiveChat
           activeConversation={activeConversation}
