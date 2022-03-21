@@ -16,11 +16,11 @@ const useStyles = makeStyles((theme) => ({
 
 const Home = ({ user, logout }) => {
   const history = useHistory();
-  
+
   const socket = useContext(SocketContext);
 
   const [conversations, setConversations] = useState([]);
-  const [activeConversation, setActiveConversation] = useState({id: null, activeUser: null, otherUsername: null});
+  const [activeConversation, setActiveConversation] = useState({ id: null, activeUser: null, otherUsername: null });
   //tracks previous conversation
   const prevActiveConversation = useRef(activeConversation);
 
@@ -52,7 +52,7 @@ const Home = ({ user, logout }) => {
   };
 
   //updates user's active status in previous conversation to inactive and current conversation to active.
-  const setUserActiveInChat = useCallback(async ({activeConvoId, activeUser, isActive}) => {
+  const setUserActiveInChat = useCallback(async ({ activeConvoId, activeUser, isActive }) => {
     const body = {
       prevActiveConvoId: prevActiveConversation.current.id,
       prevActiveUser: prevActiveConversation.current.activeUser,
@@ -63,13 +63,13 @@ const Home = ({ user, logout }) => {
     await axios.put('api/conversations/activeChat/user', body);
   }, [prevActiveConversation]);
 
-  const setActiveChat = useCallback(async ({id, activeUser, otherUsername}) => {
+  const setActiveChat = useCallback(async ({ id, activeUser, otherUsername }) => {
     //updates prevActiveConversation only if activeConversation exists.
     if (activeConversation.id) prevActiveConversation.current = activeConversation;
 
-    await setUserActiveInChat({activeConvoId: id, activeUser, isActive: true});
+    await setUserActiveInChat({ activeConvoId: id, activeUser, isActive: true });
 
-    setActiveConversation(prev => ({...prev, id, activeUser, otherUsername}));
+    setActiveConversation(prev => ({ ...prev, id, activeUser, otherUsername }));
   }, [activeConversation, setUserActiveInChat]);
 
   const saveMessage = async (body) => {
@@ -87,7 +87,19 @@ const Home = ({ user, logout }) => {
 
   //checks if otherUser is inactive. if inactive, updates otherUser's unreadCount.
   const updateOtherUserUnreadCount = async (body) => {
-    await axios.put('/api/conversations/activeChat/unread', body);
+    //return user1UnreadCount and user2UnreadCount and conversationId
+    const { data } = await axios.put('/api/conversations/activeChat/unread', body);
+    //find conversation with conversationId, update the user1UnreadCount and user2UnreadCount
+    setConversations(prev => prev.map((convo) => {
+      if (convo.id === data.conversationId) {
+        const convoCopy = { ...convo };
+        convoCopy.user1UnreadCount = data.user1UnreadCount;
+        convoCopy.user2UnreadCount = data.user2UnreadCount;
+        return convoCopy;
+      } else {
+        return convo;
+      }
+    }));
   };
 
   const postMessage = async (body) => {
@@ -99,11 +111,11 @@ const Home = ({ user, logout }) => {
       } else {
         addMessageToConversation(data);
       }
-      
+
       sendMessage(data, body);
 
       updateOtherUserUnreadCount({
-        convoId: data.message.conversationId, 
+        convoId: data.message.conversationId,
         userId: data.message.senderId,
         recipientId: body.recipientId,
       });
@@ -255,8 +267,8 @@ const Home = ({ user, logout }) => {
     if (user && user.id) {
       //when logging out set the user's active status in current conversation to inactive.
       await setUserActiveInChat({
-        activeConvoId: activeConversation.id, 
-        activeUser: activeConversation.activeUser, 
+        activeConvoId: activeConversation.id,
+        activeUser: activeConversation.activeUser,
         isActive: false
       });
       await logout(user.id);

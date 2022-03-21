@@ -3,11 +3,6 @@ import { makeStyles } from '@material-ui/core/styles';
 import { Box, Typography } from '@material-ui/core';
 
 const useStyles = makeStyles(() => ({
-  root: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-  },
   date: {
     fontSize: 11,
     color: '#BECCE2',
@@ -31,7 +26,7 @@ const SenderBubble = ({ time, text }) => {
   const classes = useStyles();
 
   return (
-    <Box className={classes.root}>
+    <Box>
       <Typography className={classes.date}>{time}</Typography>
       <Box className={classes.bubble}>
         <Typography className={classes.text}>{text}</Typography>

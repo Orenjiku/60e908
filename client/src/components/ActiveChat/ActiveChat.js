@@ -51,6 +51,7 @@ const ActiveChat = ({
                 <Messages
                   messages={conversation.messages}
                   otherUser={conversation.otherUser}
+                  otherUserUnreadCount={activeConversation.activeUser === 'user1' ? conversation.user2UnreadCount : conversation.user1UnreadCount}
                   userId={user.id}
                 />
                 <Input

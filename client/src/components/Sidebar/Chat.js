@@ -29,14 +29,14 @@ const Chat = ({ conversation, setActiveChat, activeConversation }) => {
   useEffect(() => {
     //makes sure conversation exists and is active
     if (conversation.id !== undefined && activeConversation.otherUsername === conversation.otherUser.username && unreadCount > 0) {
-        setUnreadCount(0);
+      setUnreadCount(0);
     }
   }, [unreadCount, conversation, activeConversation]);
 
   const handleClick = (conversation) => {
     setActiveChat({
-      id: conversation.id, 
-      activeUser, 
+      id: conversation.id,
+      activeUser,
       otherUsername: conversation.otherUser.username,
     });
   };
@@ -49,7 +49,7 @@ const Chat = ({ conversation, setActiveChat, activeConversation }) => {
         online={otherUser.online}
         sidebar={true}
       />
-      <ChatContent conversation={conversation} />
+      <ChatContent conversation={conversation} unreadCount={unreadCount} />
       {unreadCount > 0 && <UnreadBubble unreadCount={unreadCount} />}
     </Box>
   );
